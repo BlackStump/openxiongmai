@@ -188,14 +188,8 @@ API XM_S32 XM_MPI_ISP_GetStatisticsAE(ISP_DEV IspDev, ISP_AE_STAT_S *pstAeStat) 
   memset(pstAeStat, 0, sizeof(*pstAeStat));
   return XM_SUCCESS;
 }
-API XM_S32 XM_MPI_ISP_QueryInnerStateInfo(ISP_DEV IspDev,
-                                          ISP_INNER_STATE_INFO_S *p) {
-  (void)IspDev;
-  if (!p)
-    return XM_FAILURE;
-  memset(p, 0, sizeof(*p));
-  return XM_SUCCESS;
-}
+/* XM_MPI_ISP_QueryInnerStateInfo and XM_MPI_ISP_QueryWBInfo are the open
+ * libisp_XM530's: it holds the AE state and the AWB gains they report. */
 API XM_S32 XM_MPI_ISP_GetWBAttr(ISP_WB_ATTR_S *pstWBAttr) {
   STORE_GET(wb, pstWBAttr);
 }
@@ -213,10 +207,4 @@ API XM_S32 XM_MPI_ISP_GetWBCalAttr(ISP_AWB_CALIBRATION_V2_S *pstWBCalAttr) {
 }
 API XM_S32 XM_MPI_ISP_SetWBCalAttr(const ISP_AWB_CALIBRATION_V2_S *pstWBCalAttr) {
   STORE_SET(wbcal, pstWBCalAttr);
-}
-API XM_S32 XM_MPI_ISP_QueryWBInfo(ISP_WB_INFO_S *pstWBInfo) {
-  if (!pstWBInfo)
-    return XM_FAILURE;
-  memset(pstWBInfo, 0, sizeof(*pstWBInfo));
-  return XM_SUCCESS;
 }

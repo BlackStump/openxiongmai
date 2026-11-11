@@ -372,3 +372,45 @@ int open_ae_frame(const ISP_AE_INFO_S *info, void *state,
       ae.gain >= ae.cfg.gain_max * 0.99f;
   return 1;
 }
+
+/*
+ * The queries majestic read its exposure and white balance from (its
+ * metrics and its automatic day/night), answered from the AE state block
+ * whichever AE fills it -- the open one above or the vendor's, which keeps
+ * the same layout -- and from the gains the AWB last applied. They used to
+ * be libxmhost's, which had no state to read and returned zeros.
+ */
+__attribute__((visibility("default"))) XM_S32
+XM_MPI_ISP_QueryInnerStateInfo(ISP_DEV IspDev, ISP_INNER_STATE_INFO_S *p) {
+  const void *state = isp_3a_ae_state();
+  XM_U64 all;
+
+  (void)IspDev;
+  if (!p || !state)
+    return XM_FAILURE;
+  memset(p, 0, sizeof(*p));
+  p->u32ExposureTime = st_word(state, ST_LINES);
+  p->u32AnalogGain = st_word(state, ST_AGAIN);
+  p->u32DigitalGain = st_word(state, ST_DGAIN);
+  p->u32IspDGain = st_word(state, ST_ISPDGAIN);
+  p->u32Exposure = st_word(state, ST_EXPOSURE);
+  all = (XM_U64)p->u32AnalogGain * p->u32DigitalGain / 1024 * p->u32IspDGain / 1024;
+  p->u32AllGain = all > 0xffffffffu ? 0xffffffffu : (XM_U32)all;
+  p->u8AveLum = ((const XM_U8 *)state)[ST_AVELUM];
+  p->bExposureIsMAX = ((const XM_U8 *)state)[ST_AT_MAX] ? XM_TRUE : XM_FALSE;
+  return XM_SUCCESS;
+}
+
+__attribute__((visibility("default"))) XM_S32
+XM_MPI_ISP_QueryWBInfo(ISP_WB_INFO_S *p) {
+  XM_U32 g[3];
+
+  if (!p)
+    return XM_FAILURE;
+  memset(p, 0, sizeof(*p));
+  isp_3a_wb(g);
+  p->u16Rgain = (XM_U16)g[0];
+  p->u16Ggain = (XM_U16)g[1];
+  p->u16Bgain = (XM_U16)g[2];
+  return XM_SUCCESS;
+}

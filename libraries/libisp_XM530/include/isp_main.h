@@ -94,6 +94,8 @@ int isp_3a_register(ISP_DEV dev);
 int isp_3a_init(ISP_DEV dev, const ISP_PUB_ATTR_S *pub);
 int isp_3a_start(void);
 XM_U32 isp_3a_iso(void); /* the last AE result's ISO, 0 before the first */
+void *isp_3a_ae_state(void); /* the AE's state block (vendor layout) */
+void isp_3a_wb(XM_U32 g[3]);  /* white-balance gains applied, 256 = 1x */
 
 /* mpi_isp.c */
 const ISP_PUB_ATTR_S *isp_pub(void);

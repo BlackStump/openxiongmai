@@ -263,3 +263,11 @@ int isp_3a_start(void) {
 }
 
 XM_U32 isp_3a_iso(void) { return iso_now; }
+
+void *isp_3a_ae_state(void) { return ae_state; }
+
+/* The white-balance gains last applied, R G B, 256 = 1x */
+void isp_3a_wb(XM_U32 g[3]) {
+  for (int i = 0; i < 3; i++)
+    g[i] = __atomic_load_n(&awb_gain.au32WhiteBalanceGain[i], __ATOMIC_RELAXED);
+}
