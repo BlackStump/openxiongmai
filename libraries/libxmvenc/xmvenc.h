@@ -70,8 +70,9 @@ struct xmvenc_chn_attr {
   int qp;    /* fixed QP, or (H.264) the starting QP with rate control */
   /* Rate control, when kbps > 0: QP within qmin..qmax. H.264: frame-level,
    * in the library; H.265: the firmware's variable bitrate mode. fps is
-   * the frame rate to budget for. H.265: kbps up to 1000000, fps 0 (25)
-   * or below 1000. */
+   * the frame rate to budget for, and H.264's SPS declares it (VUI
+   * timing; 0 declares none). H.265: kbps up to 1000000, fps 0 (25) or
+   * below 1000. */
   double kbps, fps;
   int qmin, qmax;
   /* JPEG quality, 1-100 */

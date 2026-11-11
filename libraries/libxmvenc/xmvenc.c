@@ -458,11 +458,71 @@ static int level_for(int mbs) {
   return 51;
 }
 
+/*
+ * The VUI: what a player cannot work out from the slices.
+ *
+ * Range: the XM530/XM550 ISP's YUV runs the full 0-255 (on an SC5332:
+ * whites at 254-255, a tenth of the pixels at 5 or below), and with no VUI
+ * a player takes 16-235, crushes the shadows and clips the highlights. The
+ * matrix is not declared: nothing tells which one the ISP's colour
+ * conversion uses.
+ *
+ * Timing: the frame rate, so players and NVRs that read it from the SPS
+ * see the real one (with none, VLC says 29.97 and ffprobe guesses; the
+ * vendor encoder wrote 25 while frames came at 15). A tick is half a frame
+ * period: 1/(2 fps) s. Not marked fixed -- a dropped frame leaves a gap.
+ *
+ * Bitstream restriction: no reordering (P slices only, one reference), so
+ * a decoder can show each frame as it arrives instead of holding frames
+ * back for a reorder that never comes.
+ */
+static void put_vui(struct bw *w, double fps) {
+  put_bits(w, 0, 1); /* aspect_ratio_info_present_flag */
+  put_bits(w, 0, 1); /* overscan_info_present_flag */
+  put_bits(w, 1, 1); /* video_signal_type_present_flag */
+  put_bits(w, 5, 3); /* video_format: unspecified */
+  put_bits(w, 1, 1); /* video_full_range_flag */
+  put_bits(w, 0, 1); /* colour_description_present_flag */
+  put_bits(w, 0, 1); /* chroma_loc_info_present_flag */
+  if (fps > 0 && fps < 1000 && isfinite(fps)) {
+    uint32_t units, scale;
+    double r = round(fps), ntsc = round(fps * 1.001);
+
+    if (fabs(fps - r) < 1e-6) { /* whole rates: 15 fps is 1/30 s ticks */
+      units = 1;
+      scale = 2 * (uint32_t)r;
+    } else if (fabs(fps * 1.001 - ntsc) < 1e-3) { /* 30000/1001 and kin */
+      units = 1001;
+      scale = 2000 * (uint32_t)ntsc;
+    } else {
+      units = 1000;
+      scale = (uint32_t)round(fps * 2000);
+    }
+    put_bits(w, 1, 1); /* timing_info_present_flag */
+    put_bits(w, units, 32); /* num_units_in_tick */
+    put_bits(w, scale, 32); /* time_scale */
+    put_bits(w, 0, 1); /* fixed_frame_rate_flag */
+  } else {
+    put_bits(w, 0, 1);
+  }
+  put_bits(w, 0, 1);  /* nal_hrd_parameters_present_flag */
+  put_bits(w, 0, 1);  /* vcl_hrd_parameters_present_flag */
+  put_bits(w, 0, 1);  /* pic_struct_present_flag */
+  put_bits(w, 1, 1);  /* bitstream_restriction_flag */
+  put_bits(w, 1, 1);  /* motion_vectors_over_pic_boundaries_flag */
+  put_ue(w, 2);       /* max_bytes_per_pic_denom (the default) */
+  put_ue(w, 1);       /* max_bits_per_mb_denom (the default) */
+  put_ue(w, 16);      /* log2_max_mv_length_horizontal (the default) */
+  put_ue(w, 16);      /* log2_max_mv_length_vertical (the default) */
+  put_ue(w, 0);       /* max_num_reorder_frames */
+  put_ue(w, 1);       /* max_dec_frame_buffering: the one reference */
+}
+
 /* SPS/PPS matching what the hardware slice header assumes: frame_num is
  * 16 bits (log2_max_frame_num_minus4 = 12) and pic_order_cnt_type is 2,
- * as in the vendor stream. */
+ * as in the vendor stream. fps, if set, goes into the VUI's timing. */
 static int write_sps_pps(uint8_t *out, int width, int height, int qp,
-                         int cabac) {
+                         int cabac, double fps) {
   struct bw w;
   int mbw = (width + 15) / 16, mbh = (height + 15) / 16, n;
 
@@ -491,7 +551,8 @@ static int write_sps_pps(uint8_t *out, int width, int height, int qp,
   } else {
     put_bits(&w, 0, 1);
   }
-  put_bits(&w, 0, 1); /* vui_parameters_present_flag */
+  put_bits(&w, 1, 1); /* vui_parameters_present_flag */
+  put_vui(&w, fps);
   put_trailing(&w);
   n = put_nal(out, 0x67, &w);
 
@@ -821,7 +882,7 @@ struct xmvenc_chn *xmvenc_chn_create(struct xmvenc *enc, int id,
        write_cabac_table(chn->cabac_tbl.virt, 0)))
     goto fail;
   chn->hdr_len =
-      write_sps_pps(chn->hdr, a->width, a->height, a->qp, a->cabac);
+      write_sps_pps(chn->hdr, a->width, a->height, a->qp, a->cabac, a->fps);
   if (a->kbps > 0) {
     chn->rc.on = 1;
     chn->rc.qmin = a->qmin;
