@@ -12,6 +12,8 @@
  * SPDX-License-Identifier: MIT
  */
 #include <fcntl.h>
+#include <string.h>
+#include <errno.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -42,8 +44,14 @@ __attribute__((visibility("default"))) int xmhost_start(void) {
       int chn;
       unsigned width, height;
     } size = {chn, 64, 64};
-    if (ioctl(fd, VI_DISABLE, &c) || ioctl(fd, VI_SIZE, &size))
-      fprintf(stderr, "xmhost: VI channel %d did not stop cleanly\n", chn);
+    /* which call fails, and why: a channel nobody enabled since boot may
+     * refuse the disable, which would be nothing to report */
+    if (ioctl(fd, VI_DISABLE, &c))
+      fprintf(stderr, "xmhost: VI channel %d disable: %s\n", chn,
+              strerror(errno));
+    if (ioctl(fd, VI_SIZE, &size))
+      fprintf(stderr, "xmhost: VI channel %d size 64x64: %s\n", chn,
+              strerror(errno));
   }
   close(fd);
   return XM_MPI_SYS_Init();
