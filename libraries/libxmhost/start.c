@@ -26,7 +26,6 @@ XM_S32 Read_IspReg(XM_U32 u32Addr);
 
 #define NR3D_CTRL 0x30040000
 #define VI_DISABLE 0x40045603u
-#define VI_SIZE 0x400C5601u
 
 __attribute__((visibility("default"))) int xmhost_start(void) {
   if (Read_IspReg(NR3D_CTRL)) {
@@ -38,19 +37,14 @@ __attribute__((visibility("default"))) int xmhost_start(void) {
     perror("xmhost: /dev/vi");
     return -1;
   }
+  /* Highest channel first. Majestic also shrank each channel to 64x64
+   * here, but VI refuses that (EPERM, M1 2026-11-11) and nothing needs
+   * it: the application sets its own sizes after SYS_Init. */
   for (int chn = 1; chn >= 0; chn--) {
     int c = chn;
-    struct {
-      int chn;
-      unsigned width, height;
-    } size = {chn, 64, 64};
-    /* which call fails, and why: a channel nobody enabled since boot may
-     * refuse the disable, which would be nothing to report */
+
     if (ioctl(fd, VI_DISABLE, &c))
       fprintf(stderr, "xmhost: VI channel %d disable: %s\n", chn,
-              strerror(errno));
-    if (ioctl(fd, VI_SIZE, &size))
-      fprintf(stderr, "xmhost: VI channel %d size 64x64: %s\n", chn,
               strerror(errno));
   }
   close(fd);
