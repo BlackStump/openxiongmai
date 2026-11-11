@@ -175,8 +175,39 @@ XM_S32 XM_MPI_VI_ReleaseFrame(VI_CHN ViChn, VIDEO_FRAME_INFO_S *pstFrameInfo) {
                &arg);
 }
 
+/* An extended channel (1 to 5) takes its size the way channel 0 does,
+ * through the same size command; the kernel scales it from channel 0. As
+ * majestic's does (xm530, master+6eb8e2c), which keeps the rest of the
+ * attributes for itself. */
 XM_S32 XM_MPI_VI_SetExtChnAttr(VI_CHN ViChn,
-                               const VI_EXT_CHN_ATTR_S *pstExtChnAttr);
+                               const VI_EXT_CHN_ATTR_S *pstExtChnAttr) {
+  if (ViChn < 1 || ViChn > 5) {
+    FATAL_ARG("not support ViChn = %d", ViChn);
+    return XM_FAILURE;
+  }
+  if (!pstExtChnAttr) {
+    FATAL("null attribute");
+    return XM_FAILURE;
+  }
+  if (fd_vi == -1 && (fd_vi = open("/dev/vi", 0), fd_vi < 0)) {
+    FATAL("open error");
+    return XM_FAILURE;
+  }
+  struct {
+    VI_CHN chn;
+    XM_U32 width;
+    XM_U32 heght;
+  } size = {
+      .chn = ViChn,
+      .width = pstExtChnAttr->stDestSize.u32Width,
+      .heght = pstExtChnAttr->stDestSize.u32Height,
+  };
+  if (ioctl(fd_vi, 0x400C5601u, &size)) {
+    FATAL_ARG("size failed for ViChn = %d", ViChn);
+    return XM_FAILURE;
+  }
+  return XM_SUCCESS;
+}
 
 XM_S32 XM_MPI_VI_GetExtChnAttr(VI_CHN ViChn, VI_EXT_CHN_ATTR_S *pstExtChnAttr) {
   return XM_SUCCESS;
