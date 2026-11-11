@@ -31,7 +31,8 @@
 #define DBG(fmt, ...) fprintf(stderr, "libisp: " fmt "\n", ##__VA_ARGS__)
 
 /* A sensor's neutrals, against a chart: log(B/G) = slope log(R/G) + at0,
- * from slope and at0's points, R/G falling as the light gets bluer */
+ * from slope and at0's points, R/G falling as the light gets bluer. Up to
+ * NEUTRALS of them; a sensor measured at fewer leaves the rest 0. */
 #define NEUTRALS 4
 struct neutrals {
   SENSOR_ID id; /* SENSOR_CHIP */
@@ -51,6 +52,22 @@ static const struct neutrals sensors[] = {
      0.90f,
      {0.810f, 0.729f, 0.677f, 0.644f},
      {3000, 4000, 5000, 5990}},
+    /* White printer paper lit through from behind by a three-step ceiling
+     * light (no UV, so no brightener), 2500+ zones a step on M1, each step's
+     * zones within 1.5% (10-90%). The steps are unrated: 3000, 4000 and
+     * 6000 K are the usual three, and the measured R/G fall in equal steps
+     * of log R/G for their equal steps of mired, 0.117 and 0.124. All three
+     * within 0.0014 of the line in log B/G, and inside the sensor library's
+     * calibration lines. G halved, as open_awb_frame reads it. */
+    {159 /* SC5332 */,
+     -0.822f,
+     -0.735f,
+     0.05f,
+     0.10f,
+     0.52f,
+     0.95f,
+     {0.832f, 0.740f, 0.654f},
+     {3000, 4000, 6000}},
 };
 static const struct neutrals *sensor;
 
@@ -118,8 +135,11 @@ static int inside(float r, float b) {
 static int colour_temp(float r) {
   const struct neutrals *n = sensor;
   const float l = logf(r);
+  int used = 0;
+  while (used < NEUTRALS && n->kelvin[used] > 0)
+    used++;
   int i = 0;
-  while (i < NEUTRALS - 2 && r < n->r[i + 1])
+  while (i < used - 2 && r < n->r[i + 1])
     i++;
   const float l0 = logf(n->r[i]), l1 = logf(n->r[i + 1]);
   const float m0 = 1e6f / n->kelvin[i], m1 = 1e6f / n->kelvin[i + 1];
