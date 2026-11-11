@@ -81,6 +81,14 @@ static void st_put(void *state, XM_U32 off, XM_U32 v) {
 
 static XM_U32 umin(XM_U32 a, XM_U32 b) { return a < b ? a : b; }
 
+/* A sensor digital gain the library holds at one value (its minimum and
+ * most the same) is no gain the AE can use, in whatever units it is given:
+ * the SC5332's is 128..128, its 1x, and never written. The AE then counts
+ * it as 1x and leaves it out. */
+static int dgain_fixed(void) {
+  return dft.u32MinDgain && dft.u32MinDgain == dft.u32MaxDgain;
+}
+
 /* The limits of each gain, Q10: the sensor's, within the attributes' */
 struct limits {
   XM_U32 again, dgain, ispdgain, system;
@@ -90,7 +98,7 @@ static struct limits limits(const ISP_EXPOSURE_ATTR_S *a) {
   const XM_U32 shift = dft.u32ISPDgainShift ? dft.u32ISPDgainShift : 8;
   struct limits l = {
       .again = dft.u32MaxAgain ? dft.u32MaxAgain : 1024,
-      .dgain = dft.u32MaxDgain ? dft.u32MaxDgain : 1024,
+      .dgain = dft.u32MaxDgain && !dgain_fixed() ? dft.u32MaxDgain : 1024,
       .ispdgain = dft.u32MaxISPDgain ? dft.u32MaxISPDgain << 10 >> shift : 1024,
   };
   l.system = 0;
@@ -130,7 +138,7 @@ static void apply(XM_U32 lines, float gain, const struct limits *l,
     ag.u32SnsTimes = 1024;
   want = gain * 1024 * 1024 / ag.u32SnsTimes;
   XM_U32 d = (XM_U32)(want < l->dgain ? want : l->dgain);
-  if (sns.pfn_cmos_dgain_calc_table)
+  if (sns.pfn_cmos_dgain_calc_table && !dgain_fixed())
     sns.pfn_cmos_dgain_calc_table(d < 1024 ? 1024 : d, &dg);
   if (!dg.u32SnsTimes)
     dg.u32SnsTimes = 1024;
@@ -159,7 +167,8 @@ static void apply(XM_U32 lines, float gain, const struct limits *l,
  * units are known. */
 static int gains_in_q10(void) {
   AE_SENSOR_GAININFO_S g;
-  if (dft.u32MinAgain != 1024 || (dft.u32MinDgain && dft.u32MinDgain != 1024))
+  if (dft.u32MinAgain != 1024 ||
+      (dft.u32MinDgain && dft.u32MinDgain != 1024 && !dgain_fixed()))
     return 0;
   if (sns.pfn_cmos_again_calc_table) {
     memset(&g, 0, sizeof(g));
@@ -173,7 +182,7 @@ static int gains_in_q10(void) {
         return 0;
     }
   }
-  if (sns.pfn_cmos_dgain_calc_table && dft.u32MaxDgain > 1024) {
+  if (sns.pfn_cmos_dgain_calc_table && dft.u32MaxDgain > 1024 && !dgain_fixed()) {
     memset(&g, 0, sizeof(g));
     sns.pfn_cmos_dgain_calc_table(1024, &g);
     if (g.u32SnsTimes != 1024)

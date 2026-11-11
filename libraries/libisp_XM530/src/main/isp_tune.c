@@ -20,8 +20,9 @@
  *  - dynamic defect pixels (DDPC_BASE + 8, + 0xc): 2b and b = 256 - s
  *    below s 128, 2b + 1 and b = 255 - s from it, s the threshold rounded
  *    down;
- *  - DRC (0x3000b020): the defog strength, rounded down; 0x3000b024 the
- *    largest of the 64 local tone mapping statistics at 0x3000b300;
+ *  - DRC (0x3000b020): the defog strength, rounded down (0 with defog off);
+ *    0x3000b024 the largest of the 64 local tone mapping statistics at
+ *    0x3000b300, with defog off as well (0 there blacks the picture out);
  *  - 3D noise reduction: every register the vendor's loop sets, as it
  *    leaves them where the gain has settled, at the nearest ISO measured,
  *    from the sensor's schedule (arch/xm530: the IMX335's measured on the
@@ -243,19 +244,22 @@ void isp_tune(XM_U32 iso, const struct isp_tune_attrs *a) {
     isp_write(REG_DDPC + 4, b);
   }
 
-  if (!a->defog.bEnable) {
-    isp_write(REG_DRC, 0);
-  } else {
-    isp_write(REG_DRC,
-              a->defog.enOpType == OP_TYPE_MANUAL
-                  ? a->defog.stManual.u8Strength
-                  : (XM_U32)floor(interp(a->defog.stAuto.au8Sth, NULL, iso)));
-    XM_U32 top = 0;
-    for (int i = 0; i < 64; i++) {
-      const XM_U32 v = isp_read(REG_LTM_BRIGHT + 4 * i);
-      if (v > top)
-        top = v;
-    }
-    isp_write(REG_DRC + 4, top);
+  isp_write(REG_DRC,
+            !a->defog.bEnable ? 0
+            : a->defog.enOpType == OP_TYPE_MANUAL
+                ? a->defog.stManual.u8Strength
+                : (XM_U32)floor(interp(a->defog.stAuto.au8Sth, NULL, iso)));
+  /* The tone mapping's top is set with the DRC off too, as the vendor
+   * library sets it (0xf0e on the SC5332 in a lit room, strength 0): left
+   * at the start-up template's 0 the picture is black, statistics and all
+   * still running (M1, SC5332). A 0 top means the statistics aren't in yet,
+   * and is not written. */
+  XM_U32 top = 0;
+  for (int i = 0; i < 64; i++) {
+    const XM_U32 v = isp_read(REG_LTM_BRIGHT + 4 * i);
+    if (v > top)
+      top = v;
   }
+  if (top)
+    isp_write(REG_DRC + 4, top);
 }
