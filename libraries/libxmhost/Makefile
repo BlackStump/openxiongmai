@@ -12,7 +12,7 @@ CFLAGS += -I../isp/include/isp -I../isp/include/xm -I../include \
 	  -fvisibility=hidden
 
 MPI = ../libmpi/mpi_sys.c ../libmpi/mpi_vi.c ../libmpi/mpi_region.c
-OBJECTS = mipi.o alg.o camera.o $(MPI:../libmpi/%.c=mpi_%.o)
+OBJECTS = start.o mipi.o alg.o camera.o $(MPI:../libmpi/%.c=mpi_%.o)
 
 all: libxmhost.so
 

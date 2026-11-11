@@ -19,7 +19,7 @@
     return XM_FAILURE;                                                         \
   }
 
-static int fd_rgn = 1;
+static int fd_rgn = -1;
 
 XM_S32 XM_MPI_RGN_INIT(void) {
   OPEN_RGN;

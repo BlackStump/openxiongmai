@@ -2,9 +2,12 @@
  * majestic: libxmhost, the vendor's libispapp_XM530 and sensor library,
  * and a libisp_XM530 (the open one, for its AE and AWB).
  *
- *   xmhost_test [seconds]       (default 20)
+ *   xmhost_test [seconds] [nosys]     (default 20)
  *
- * It sets the system up (XM_MPI_SYS_Init), has libispapp start the sensor
+ * The system comes up through xmhost_start, as majestic brings it up; with
+ * "nosys" that is skipped, for comparing.
+ *
+ * It sets the system up (xmhost_start), has libispapp start the sensor
  * and the ISP in its mode 0 (the application owns VI), sets channel 0 up as
  * majestic does on the SC5332 (2600x1456 at 0,248 of the frame, to
  * 1920x1080), then takes a frame a second and prints its size and mean luma.
@@ -21,6 +24,7 @@
 
 #include "re_sys.h"
 #include "re_vi.h"
+#include "xmhost.h"
 
 int ispApp(int argc, char *argv[]);
 
@@ -60,10 +64,11 @@ static int frame_luma(const VIDEO_FRAME_INFO_S *f, int save) {
 
 int main(int argc, char **argv) {
   const int seconds = argc > 1 ? atoi(argv[1]) : 20;
+  const int nosys = argc > 2 && !strcmp(argv[2], "nosys");
   setvbuf(stdout, NULL, _IOLBF, 0);
 
-  if (XM_MPI_SYS_Init() != XM_SUCCESS) {
-    fprintf(stderr, "XM_MPI_SYS_Init failed\n");
+  if (!nosys && xmhost_start() != 0) {
+    fprintf(stderr, "xmhost_start failed\n");
     return 1;
   }
   /* as majestic starts it: mode 0, PAL timing, resolution 0, the sensor's

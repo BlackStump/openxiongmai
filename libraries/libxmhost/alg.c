@@ -7,9 +7,9 @@
  * (and refuse to start if that fails). majestic is that library. Here it is
  * empty on purpose: the open AE and AWB in libisp_XM530 (LIBISP_OPEN_AE=1,
  * LIBISP_OPEN_AWB=1) take the sensor's callbacks themselves and do the work.
- * What libisp needs of these is that they exist: init and run functions
+ * What libisp needs of these is that they exist -- init and run functions
  * that answer, the run ones failing, so a frame the open 3A does not take
- * changes nothing.
+ * changes nothing -- and the AWB init's statistics window.
  *
  * The attribute calls (exposure, white balance, colour matrix and the state
  * queries) are a store: Get gives what Set gave. The exposure attributes
@@ -45,9 +45,23 @@ static XM_S32 ae_exit(ISP_DEV d, XM_S32 h) {
   (void)d, (void)h;
   return XM_SUCCESS;
 }
+/* The statistics window is the AWB library's to give: libisp lays the
+ * 32x16 zone grid over what this returns, and with none every zone reads
+ * full scale (the AE then sat at its least exposure on a black picture,
+ * M1, SC5332). As majestic's gives it on the SC5332 (2600x1952 frame):
+ * columns from 4, a multiple of 64 wide (4-2564), rows the whole height
+ * to a multiple of 32 (0-1952). */
 static XM_S32 awb_init(XM_S32 h, ISP_AWB_RESULT_BK_S *const p, XM_U32 w,
                        XM_U32 ht) {
-  (void)h, (void)p, (void)w, (void)ht;
+  (void)h;
+  if (!p || w < 72 || ht < 32)
+    return XM_FAILURE;
+  p->stWin.bChange = XM_TRUE;
+  p->stWin.u8Mode = 0;
+  p->stWin.u32HBegin = 4;
+  p->stWin.u32HEnd = 4 + (w - 8) / 64 * 64;
+  p->stWin.u32VBegin = 0;
+  p->stWin.u32VEnd = ht / 32 * 32;
   return XM_SUCCESS;
 }
 static XM_S32 awb_run(XM_S32 h, const ISP_AWB_INFO_S *i, ISP_AWB_RESULT_S *r,
